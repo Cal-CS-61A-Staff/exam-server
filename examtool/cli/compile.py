@@ -7,9 +7,9 @@ import click
 from pikepdf import Pdf
 
 from examtool.api.convert import convert
-from examtool.api.scramble import scramble as scramble_fn
 from examtool.api.database import get_exam
 from examtool.api.gen_latex import render_latex
+from examtool.api.scramble import scramble as scramble
 from examtool.cli.utils import exam_name_option, hidden_output_folder_option, prettify
 
 
@@ -28,18 +28,12 @@ from examtool.cli.utils import exam_name_option, hidden_output_folder_option, pr
     help="The exam Markdown you wish to compile. Leave blank to compile the deployed exam.",
 )
 @click.option(
-    "--scramble",
+    "--seed",
     default=None,
-    help="Scrambles the exam based off of the email seed."
-)
-@click.option(
-    "--keep_data",
-    default=False,
-    is_flag=True,
-    help="Scrambe keep data flag."
+    help="Scrambles the exam based off of the seed (E.g. a students email)."
 )
 @hidden_output_folder_option
-def compile(exam, json, md, scramble, keep_data, out):
+def compile(exam, json, md, seed, out):
     """
     Compile one PDF, unencrypted.
     Exam must have been deployed first.
@@ -60,9 +54,9 @@ def compile(exam, json, md, scramble, keep_data, out):
         print("Fetching exam...")
         exam_data = get_exam(exam=exam)
 
-    if scramble:
+    if seed:
         print("Scrambling exam...")
-        exam_data = scramble_fn(scramble, exam_data, keep_data=keep_data)
+        exam_data = scramble(seed, exam_data,)
 
     print("Rendering exam...")
     with render_latex(
