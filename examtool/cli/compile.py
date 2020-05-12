@@ -1,7 +1,7 @@
 import os
 import pathlib
 from io import BytesIO
-from json import load
+from json import load, dump
 
 import click
 from pikepdf import Pdf
@@ -32,8 +32,14 @@ from examtool.cli.utils import exam_name_option, hidden_output_folder_option, pr
     default=None,
     help="Scrambles the exam based off of the seed (E.g. a students email)."
 )
+@click.option(
+    "--json-out",
+    default=None,
+    type=click.File("w"),
+    help="Exports the json to the file specified."
+)
 @hidden_output_folder_option
-def compile(exam, json, md, seed, out):
+def compile(exam, json, md, seed, json_out, out):
     """
     Compile one PDF, unencrypted.
     Exam must have been deployed first.
@@ -57,6 +63,11 @@ def compile(exam, json, md, seed, out):
     if seed:
         print("Scrambling exam...")
         exam_data = scramble(seed, exam_data,)
+
+    if json_out:
+        print("Dumping json...")
+        dump(exam_data, json_out)
+        return
 
     print("Rendering exam...")
     with render_latex(
