@@ -6,6 +6,7 @@ def scramble(email, exam, *, keep_data=False):
 
     def scramble_group(group, substitutions, config, depth):
         group_substitutions = select(group["substitutions"])
+        group_substitutions.update(select_no_replace(group["substitutions_match"] if "substitutions_match" in group else []))
         substitute(
             group,
             [*substitutions, group_substitutions],
@@ -29,6 +30,7 @@ def scramble(email, exam, *, keep_data=False):
 
     def scramble_question(question, substitutions, config):
         question_substitutions = select(question["substitutions"])
+        question_substitutions.update(select_no_replace(question["substitutions_match"] if "substitutions_match" in question else []))
         substitute(
             question, [question_substitutions, *substitutions], ["html", "tex", "text"]
         )
@@ -55,6 +57,7 @@ def scramble(email, exam, *, keep_data=False):
             target.pop("substitutions", None)
 
     global_substitutions = select(exam["substitutions"])
+    global_substitutions.update(select_no_replace(exam["substitutions_match"] if "substitutions_match" in exam else []))
     exam["config"]["scramble_groups"] = exam["config"].get(
         "scramble_groups", [-1]
     ) or range(100)
@@ -86,16 +89,18 @@ def get_elements(group):
 def select(substitutions):
     out = {}
     # DEFINE
-    for k, v in sorted(substitutions["select"].items()):
+    for k, v in sorted(substitutions.items()):
         out[k] = random.choice(v)
+    return out
 
+def select_no_replace(substitutions_match):
+    out = {}
     # DEFINE MATCH
-    for item in substitutions["match"]:
+    for item in substitutions_match:
         k, v = item
         values = v.copy()
         for choice in k:
             c = random.choice(values)
             values.remove(c)
             out[choice] = c
-
     return out

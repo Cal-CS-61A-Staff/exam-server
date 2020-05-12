@@ -89,10 +89,8 @@ def parse_input_lines(lines):
 def consume_rest_of_question(buff):
     contents = []
     input_lines = []
-    substitutions = {
-        "select": {},
-        "match": []
-    }
+    substitutions = {}
+    substitutions_match = []
     while True:
         line = buff.pop()
         mode, directive, rest = directive_type(line)
@@ -112,6 +110,7 @@ def consume_rest_of_question(buff):
                     **parse("\n".join(contents)),
                     "options": options,
                     "substitutions": substitutions,
+                    "substitutions_match": substitutions_match
                 }
             else:
                 raise SyntaxError("Unexpected END in QUESTION")
@@ -126,11 +125,11 @@ def consume_rest_of_question(buff):
                 replacements_list = replacements.split(" ")
                 if len(replacements_list) < len(directives_list):
                     raise SyntaxError("DEFINE MATCH must have at least as many replacements as it has directives")
-                substitutions["match"].append(
+                substitutions_match.append(
                     [directives_list, replacements_list]
                 )
             else:
-                substitutions["select"][directive] = rest.split(" ")
+                substitutions[directive] = rest.split(" ")
         else:
             raise SyntaxError("Unexpected directive in QUESTION")
 
@@ -139,10 +138,8 @@ def consume_rest_of_group(buff, end):
     group_contents = []
     elements = []
     started_elements = False
-    substitutions = {
-        "select": {},
-        "match": []
-    }
+    substitutions = {}
+    substitutions_match = []
     pick_some = None
     scramble = False
     while True:
@@ -174,6 +171,7 @@ def consume_rest_of_group(buff, end):
                 **parse("\n".join(group_contents)),
                 "elements": elements,
                 "substitutions": substitutions,
+                "substitutions_match": substitutions_match,
                 "pick_some": pick_some,
                 "scramble": scramble,
             }
@@ -188,11 +186,11 @@ def consume_rest_of_group(buff, end):
                 replacements_list = replacements.split(" ")
                 if len(replacements_list) < len(directives_list):
                     raise SyntaxError("DEFINE MATCH must have at least as many replacements as it has directives")
-                substitutions["match"].append(
+                substitutions_match.append(
                     [directives_list, replacements_list]
                 )
             else:
-                substitutions["select"][directive] = rest.split(" ")
+                substitutions[directive] = rest.split(" ")
         elif mode == "CONFIG":
             if directive == "PICK":
                 if pick_some:
@@ -214,10 +212,8 @@ def convert(text):
     groups = []
     public = None
     config = {}
-    substitutions = {
-        "select": {},
-        "match": []
-    }
+    substitutions = {}
+    substitutions_match = []
 
     try:
         while not buff.empty():
@@ -252,11 +248,11 @@ def convert(text):
                     replacements_list = replacements.split(" ")
                     if len(replacements_list) < len(directives_list):
                         raise SyntaxError("DEFINE MATCH must have at least as many replacements as it has directives")
-                    substitutions["match"].append(
+                    substitutions_match.append(
                         [directives_list, replacements_list]
                     )
                 else:
-                    substitutions["select"][directive] = rest.split(" ")
+                    substitutions[directive] = rest.split(" ")
             else:
                 raise SyntaxError("Unexpected directive")
     except SyntaxError as e:
@@ -267,6 +263,7 @@ def convert(text):
         "groups": groups,
         "config": config,
         "substitutions": substitutions,
+        "substitutions_match": substitutions_match
     }
 
 
