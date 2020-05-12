@@ -99,7 +99,7 @@ def select_no_replace(substitutions_match):
     for item in substitutions_match:
         k = item["directives"]
         v = item["replacements"]
-        values = list(v)
+        values = v.copy()
         for choice in k:
             c = random.choice(values)
             values.remove(c)
