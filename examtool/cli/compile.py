@@ -9,7 +9,7 @@ from pikepdf import Pdf
 from examtool.api.convert import convert
 from examtool.api.database import get_exam
 from examtool.api.gen_latex import render_latex
-from examtool.api.scramble import scramble as scramble
+from examtool.api.scramble import scramble
 from examtool.cli.utils import exam_name_option, hidden_output_folder_option, prettify
 
 
@@ -30,13 +30,13 @@ from examtool.cli.utils import exam_name_option, hidden_output_folder_option, pr
 @click.option(
     "--seed",
     default=None,
-    help="Scrambles the exam based off of the seed (E.g. a students email)."
+    help="Scrambles the exam based off of the seed (E.g. a student's email)."
 )
 @click.option(
     "--json-out",
     default=None,
     type=click.File("w"),
-    help="Exports the json to the file specified."
+    help="Exports the JSON to the file specified."
 )
 @hidden_output_folder_option
 def compile(exam, json, md, seed, json_out, out):
