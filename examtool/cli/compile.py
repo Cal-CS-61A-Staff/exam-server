@@ -41,8 +41,9 @@ from examtool.cli.utils import exam_name_option, hidden_output_folder_option, pr
 @hidden_output_folder_option
 def compile(exam, json, md, seed, json_out, out):
     """
-    Compile one PDF, unencrypted.
-    Exam must have been deployed first.
+    Compile one PDF or JSON (from Markdown), unencrypted.
+    The exam may be deployed or local (in Markdown or JSON).
+    If a seed is specified, it will scramble the exam.
     """
     if not out:
         out = ""
