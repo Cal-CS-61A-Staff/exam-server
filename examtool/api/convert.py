@@ -1,5 +1,6 @@
 import json
 import random
+import re
 import string
 
 import pypandoc
@@ -88,7 +89,10 @@ def parse_input_lines(lines):
 def consume_rest_of_question(buff):
     contents = []
     input_lines = []
-    substitutions = {}
+    substitutions = {
+        "select": {},
+        "match": []
+    }
     while True:
         line = buff.pop()
         mode, directive, rest = directive_type(line)
@@ -112,7 +116,21 @@ def consume_rest_of_question(buff):
             else:
                 raise SyntaxError("Unexpected END in QUESTION")
         elif mode == "DEFINE":
-            substitutions[directive] = rest.split(" ")
+            if directive == "MATCH":
+                regex = r"\[(.*)\]\s+\[(.*)\]"
+                matches = re.match(regex, rest)
+                if not matches or len(matches.groups()) != 2:
+                    raise SyntaxError("Invalid declaration of DEFINE MATCH")
+                directives, replacements = matches.groups()
+                directives_list = directives.split(" ")
+                replacements_list = replacements.split(" ")
+                if len(replacements_list) < len(directives_list):
+                    raise SyntaxError("DEFINE MATCH must have at least as many replacements as it has directives")
+                substitutions["match"].append(
+                    [directives_list, replacements_list]
+                )
+            else:
+                substitutions["select"][directive] = rest.split(" ")
         else:
             raise SyntaxError("Unexpected directive in QUESTION")
 
@@ -121,7 +139,10 @@ def consume_rest_of_group(buff, end):
     group_contents = []
     elements = []
     started_elements = False
-    substitutions = {}
+    substitutions = {
+        "select": {},
+        "match": []
+    }
     pick_some = None
     scramble = False
     while True:
@@ -157,7 +178,21 @@ def consume_rest_of_group(buff, end):
                 "scramble": scramble,
             }
         elif mode == "DEFINE":
-            substitutions[directive] = rest.split(" ")
+            if directive == "MATCH":
+                regex = r"\[(.*)\]\s+\[(.*)\]"
+                matches = re.match(regex, rest)
+                if not matches or len(matches.groups()) != 2:
+                    raise SyntaxError("Invalid declaration of DEFINE MATCH")
+                directives, replacements = matches.groups()
+                directives_list = directives.split(" ")
+                replacements_list = replacements.split(" ")
+                if len(replacements_list) < len(directives_list):
+                    raise SyntaxError("DEFINE MATCH must have at least as many replacements as it has directives")
+                substitutions["match"].append(
+                    [directives_list, replacements_list]
+                )
+            else:
+                substitutions["select"][directive] = rest.split(" ")
         elif mode == "CONFIG":
             if directive == "PICK":
                 if pick_some:
@@ -179,7 +214,10 @@ def convert(text):
     groups = []
     public = None
     config = {}
-    substitutions = {}
+    substitutions = {
+        "select": {},
+        "match": []
+    }
 
     try:
         while not buff.empty():
@@ -204,7 +242,21 @@ def convert(text):
                 else:
                     groups.append(group)
             elif mode == "DEFINE":
-                substitutions[directive] = rest.split(" ")
+                if directive == "MATCH":
+                    regex = r"\[(.*)\]\s+\[(.*)\]"
+                    matches = re.match(regex, rest)
+                    if not matches or len(matches.groups()) != 2:
+                        raise SyntaxError("Invalid declaration of DEFINE MATCH")
+                    directives, replacements = matches.groups()
+                    directives_list = directives.split(" ")
+                    replacements_list = replacements.split(" ")
+                    if len(replacements_list) < len(directives_list):
+                        raise SyntaxError("DEFINE MATCH must have at least as many replacements as it has directives")
+                    substitutions["match"].append(
+                        [directives_list, replacements_list]
+                    )
+                else:
+                    substitutions["select"][directive] = rest.split(" ")
             else:
                 raise SyntaxError("Unexpected directive")
     except SyntaxError as e:

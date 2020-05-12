@@ -85,6 +85,17 @@ def get_elements(group):
 
 def select(substitutions):
     out = {}
-    for k, v in sorted(substitutions.items()):
+    # DEFINE
+    for k, v in sorted(substitutions["select"].items()):
         out[k] = random.choice(v)
+
+    # DEFINE MATCH
+    for item in substitutions["match"]:
+        k, v = item
+        values = v.copy()
+        for choice in k:
+            c = random.choice(values)
+            values.remove(c)
+            out[choice] = c
+
     return out
