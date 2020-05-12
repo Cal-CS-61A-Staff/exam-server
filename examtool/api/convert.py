@@ -126,7 +126,10 @@ def consume_rest_of_question(buff):
                 if len(replacements_list) < len(directives_list):
                     raise SyntaxError("DEFINE MATCH must have at least as many replacements as it has directives")
                 substitutions_match.append(
-                    [directives_list, replacements_list]
+                    {
+                        "directives": directives_list, 
+                        "replacements": replacements_list
+                    }
                 )
             else:
                 substitutions[directive] = rest.split(" ")
@@ -187,7 +190,10 @@ def consume_rest_of_group(buff, end):
                 if len(replacements_list) < len(directives_list):
                     raise SyntaxError("DEFINE MATCH must have at least as many replacements as it has directives")
                 substitutions_match.append(
-                    [directives_list, replacements_list]
+                    {
+                        "directives": directives_list, 
+                        "replacements": replacements_list
+                    }
                 )
             else:
                 substitutions[directive] = rest.split(" ")
@@ -249,7 +255,10 @@ def convert(text):
                     if len(replacements_list) < len(directives_list):
                         raise SyntaxError("DEFINE MATCH must have at least as many replacements as it has directives")
                     substitutions_match.append(
-                        [directives_list, replacements_list]
+                        {
+                            "directives": directives_list, 
+                            "replacements": replacements_list
+                        }
                     )
                 else:
                     substitutions[directive] = rest.split(" ")
