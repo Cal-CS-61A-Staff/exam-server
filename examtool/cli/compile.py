@@ -7,6 +7,7 @@ import click
 from pikepdf import Pdf
 
 from examtool.api.database import get_exam
+from examtool.api.convert import convert
 from examtool.api.gen_latex import render_latex
 from examtool.cli.utils import exam_name_option, hidden_output_folder_option, prettify
 
@@ -19,8 +20,14 @@ from examtool.cli.utils import exam_name_option, hidden_output_folder_option, pr
     type=click.File("r"),
     help="The exam JSON you wish to compile. Leave blank to compile the deployed exam.",
 )
+@click.option(
+    "--md",
+    default=None,
+    type=click.File("r"),
+    help="The exam Markdown you wish to compile. Leave blank to compile the deployed exam.",
+)
 @hidden_output_folder_option
-def compile(exam, json, out):
+def compile(exam, json, md, out):
     """
     Compile one PDF, unencrypted.
     Exam must have been deployed first.
@@ -30,10 +37,13 @@ def compile(exam, json, out):
 
     pathlib.Path(out).mkdir(parents=True, exist_ok=True)
 
-    if not json:
-        exam_data = get_exam(exam=exam)
-    else:
+    if json:
         exam_data = load(json)
+    elif md:
+        exam_text_data = md.read()
+        exam_data = convert(exam_text_data)
+    else:
+        exam_data = get_exam(exam=exam)
 
     with render_latex(
         exam_data, {"coursecode": prettify(exam.split("-")[0]), "description": "Sample Exam."}
