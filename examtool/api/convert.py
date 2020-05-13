@@ -1,5 +1,6 @@
 import json
 import random
+import re
 import string
 
 import pypandoc
@@ -27,15 +28,19 @@ def directive_type(line):
     return tokens[1], tokens[2] if len(tokens) > 2 else "", tokens[3] if len(tokens) > 3 else ""
 
 
-def get_points(line):
+def process_title(line):
     tokens = line.split(" ")
     point_sec = tokens[-1]
+    has_fixed = tokens and tokens[0] == "FIXED"
+    if has_fixed:
+        tokens = tokens[1:]
+        line = " ".join(tokens)
     if not point_sec or point_sec[0] != "[" or point_sec[-1] != "]":
-        return line, None
+        return line, has_fixed, None
     try:
-        return " ".join(tokens[:-1]), float(point_sec[1:-1])
+        return " ".join(tokens[:-1]), has_fixed, float(point_sec[1:-1])
     except ValueError:
-        return line, None
+        return line, has_fixed, None
 
 
 def rand_id():
@@ -49,6 +54,25 @@ def parse(text):
         "text": text,
     }
 
+def parse_define(directive, rest, substitutions, substitutions_match):
+    if directive == "MATCH":
+        regex = r"\[(.*)\]\s+\[(.*)\]"
+        matches = re.match(regex, rest)
+        if not matches or len(matches.groups()) != 2:
+            raise SyntaxError("Invalid declaration of DEFINE MATCH")
+        directives, replacements = matches.groups()
+        directives_list = directives.split(" ")
+        replacements_list = replacements.split(" ")
+        if len(replacements_list) < len(directives_list):
+            raise SyntaxError("DEFINE MATCH must have at least as many replacements as it has directives")
+        substitutions_match.append(
+            {
+                "directives": directives_list, 
+                "replacements": replacements_list,
+            }
+        )
+    else:
+        substitutions[directive] = rest.split(" ")
 
 def parse_input_lines(lines):
     if not lines:
@@ -89,6 +113,7 @@ def consume_rest_of_question(buff):
     contents = []
     input_lines = []
     substitutions = {}
+    substitutions_match = []
     while True:
         line = buff.pop()
         mode, directive, rest = directive_type(line)
@@ -108,11 +133,12 @@ def consume_rest_of_question(buff):
                     **parse("\n".join(contents)),
                     "options": options,
                     "substitutions": substitutions,
+                    "substitutions_match": substitutions_match,
                 }
             else:
                 raise SyntaxError("Unexpected END in QUESTION")
         elif mode == "DEFINE":
-            substitutions[directive] = rest.split(" ")
+            parse_define(directive, rest, substitutions, substitutions_match)
         else:
             raise SyntaxError("Unexpected directive in QUESTION")
 
@@ -122,6 +148,7 @@ def consume_rest_of_group(buff, end):
     elements = []
     started_elements = False
     substitutions = {}
+    substitutions_match = []
     pick_some = None
     scramble = False
     while True:
@@ -134,18 +161,20 @@ def consume_rest_of_group(buff, end):
                 group_contents.append(line)
         elif mode == "BEGIN" and directive == "QUESTION":
             started_elements = True
-            title, points = get_points(rest)
+            title, is_fixed, points = process_title(rest)
             if title:
                 raise SyntaxError("Unexpected arguments passed in BEGIN QUESTION directive")
             question = consume_rest_of_question(buff)
             question["points"] = points
+            question["fixed"] = is_fixed
             elements.append(question)
         elif mode == "BEGIN" and directive == "GROUP":
             started_elements = True
-            title, points = get_points(rest)
+            title, is_fixed, points = process_title(rest)
             group = consume_rest_of_group(buff, "GROUP")
             group["name"] = title
             group["points"] = points
+            group["fixed"] = is_fixed
             elements.append(group)
         elif mode == "END" and directive == end:
             return {
@@ -153,11 +182,12 @@ def consume_rest_of_group(buff, end):
                 **parse("\n".join(group_contents)),
                 "elements": elements,
                 "substitutions": substitutions,
+                "substitutions_match": substitutions_match,
                 "pick_some": pick_some,
                 "scramble": scramble,
             }
         elif mode == "DEFINE":
-            substitutions[directive] = rest.split(" ")
+            parse_define(directive, rest, substitutions, substitutions_match)
         elif mode == "CONFIG":
             if directive == "PICK":
                 if pick_some:
@@ -180,6 +210,7 @@ def convert(text):
     public = None
     config = {}
     substitutions = {}
+    substitutions_match = []
 
     try:
         while not buff.empty():
@@ -193,18 +224,21 @@ def convert(text):
                 else:
                     raise SyntaxError("Unexpected CONFIG directive {}".format(directive))
             elif mode == "BEGIN" and directive in ["GROUP", "PUBLIC"]:
-                title, points = get_points(rest)
+                title, is_fixed, points = process_title(rest)
                 group = consume_rest_of_group(buff, directive)
                 group["name"] = title
                 group["points"] = points
+                group["fixed"] = is_fixed
                 if directive == "PUBLIC":
                     if public:
                         raise SyntaxError("Only one PUBLIC block is allowed")
+                    if is_fixed:
+                        raise SyntaxError("PUBLIC blocks are already FIXED")
                     public = group
                 else:
                     groups.append(group)
             elif mode == "DEFINE":
-                substitutions[directive] = rest.split(" ")
+                parse_define(directive, rest, substitutions, substitutions_match)
             else:
                 raise SyntaxError("Unexpected directive")
     except SyntaxError as e:
@@ -215,6 +249,7 @@ def convert(text):
         "groups": groups,
         "config": config,
         "substitutions": substitutions,
+        "substitutions_match": substitutions_match,
     }
 
 
