@@ -50,6 +50,25 @@ def parse(text):
         "text": text,
     }
 
+def parse_define(directive, rest, substitutions, substitutions_match):
+    if directive == "MATCH":
+        regex = r"\[(.*)\]\s+\[(.*)\]"
+        matches = re.match(regex, rest)
+        if not matches or len(matches.groups()) != 2:
+            raise SyntaxError("Invalid declaration of DEFINE MATCH")
+        directives, replacements = matches.groups()
+        directives_list = directives.split(" ")
+        replacements_list = replacements.split(" ")
+        if len(replacements_list) < len(directives_list):
+            raise SyntaxError("DEFINE MATCH must have at least as many replacements as it has directives")
+        substitutions_match.append(
+            {
+                "directives": directives_list, 
+                "replacements": replacements_list,
+            }
+        )
+    else:
+        substitutions[directive] = rest.split(" ")
 
 def parse_input_lines(lines):
     if not lines:
@@ -110,29 +129,12 @@ def consume_rest_of_question(buff):
                     **parse("\n".join(contents)),
                     "options": options,
                     "substitutions": substitutions,
-                    "substitutions_match": substitutions_match
+                    "substitutions_match": substitutions_match,
                 }
             else:
                 raise SyntaxError("Unexpected END in QUESTION")
         elif mode == "DEFINE":
-            if directive == "MATCH":
-                regex = r"\[(.*)\]\s+\[(.*)\]"
-                matches = re.match(regex, rest)
-                if not matches or len(matches.groups()) != 2:
-                    raise SyntaxError("Invalid declaration of DEFINE MATCH")
-                directives, replacements = matches.groups()
-                directives_list = directives.split(" ")
-                replacements_list = replacements.split(" ")
-                if len(replacements_list) < len(directives_list):
-                    raise SyntaxError("DEFINE MATCH must have at least as many replacements as it has directives")
-                substitutions_match.append(
-                    {
-                        "directives": directives_list, 
-                        "replacements": replacements_list
-                    }
-                )
-            else:
-                substitutions[directive] = rest.split(" ")
+            parse_define(directive, rest, substitutions, substitutions_match)
         else:
             raise SyntaxError("Unexpected directive in QUESTION")
 
@@ -179,24 +181,7 @@ def consume_rest_of_group(buff, end):
                 "scramble": scramble,
             }
         elif mode == "DEFINE":
-            if directive == "MATCH":
-                regex = r"\[(.*)\]\s+\[(.*)\]"
-                matches = re.match(regex, rest)
-                if not matches or len(matches.groups()) != 2:
-                    raise SyntaxError("Invalid declaration of DEFINE MATCH")
-                directives, replacements = matches.groups()
-                directives_list = directives.split(" ")
-                replacements_list = replacements.split(" ")
-                if len(replacements_list) < len(directives_list):
-                    raise SyntaxError("DEFINE MATCH must have at least as many replacements as it has directives")
-                substitutions_match.append(
-                    {
-                        "directives": directives_list, 
-                        "replacements": replacements_list
-                    }
-                )
-            else:
-                substitutions[directive] = rest.split(" ")
+            parse_define(directive, rest, substitutions, substitutions_match)
         elif mode == "CONFIG":
             if directive == "PICK":
                 if pick_some:
@@ -244,24 +229,7 @@ def convert(text):
                 else:
                     groups.append(group)
             elif mode == "DEFINE":
-                if directive == "MATCH":
-                    regex = r"\[(.*)\]\s+\[(.*)\]"
-                    matches = re.match(regex, rest)
-                    if not matches or len(matches.groups()) != 2:
-                        raise SyntaxError("Invalid declaration of DEFINE MATCH")
-                    directives, replacements = matches.groups()
-                    directives_list = directives.split(" ")
-                    replacements_list = replacements.split(" ")
-                    if len(replacements_list) < len(directives_list):
-                        raise SyntaxError("DEFINE MATCH must have at least as many replacements as it has directives")
-                    substitutions_match.append(
-                        {
-                            "directives": directives_list, 
-                            "replacements": replacements_list
-                        }
-                    )
-                else:
-                    substitutions[directive] = rest.split(" ")
+                parse_define(directive, rest, substitutions, substitutions_match)
             else:
                 raise SyntaxError("Unexpected directive")
     except SyntaxError as e:
@@ -272,7 +240,7 @@ def convert(text):
         "groups": groups,
         "config": config,
         "substitutions": substitutions,
-        "substitutions_match": substitutions_match
+        "substitutions_match": substitutions_match,
     }
 
 
