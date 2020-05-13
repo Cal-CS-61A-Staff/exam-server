@@ -6,7 +6,7 @@ def scramble(email, exam, *, keep_data=False):
 
     def scramble_group(group, substitutions, config, depth):
         group_substitutions = select(group["substitutions"])
-        group_substitutions.update(select_no_replace(group["substitutions_match"] if "substitutions_match" in group else []))
+        group_substitutions.update(select_no_replace(group.get("substitutions_match", [])))
         substitute(
             group,
             [*substitutions, group_substitutions],
@@ -30,7 +30,7 @@ def scramble(email, exam, *, keep_data=False):
 
     def scramble_question(question, substitutions, config):
         question_substitutions = select(question["substitutions"])
-        question_substitutions.update(select_no_replace(question["substitutions_match"] if "substitutions_match" in question else []))
+        question_substitutions.update(select_no_replace(question.get("substitutions_match", [])))
         substitute(
             question, [question_substitutions, *substitutions], ["html", "tex", "text"]
         )
@@ -57,7 +57,7 @@ def scramble(email, exam, *, keep_data=False):
             target.pop("substitutions", None)
 
     global_substitutions = select(exam["substitutions"])
-    global_substitutions.update(select_no_replace(exam["substitutions_match"] if "substitutions_match" in exam else []))
+    global_substitutions.update(select_no_replace(exam.get("substitutions_match", [])))
     exam["config"]["scramble_groups"] = exam["config"].get(
         "scramble_groups", [-1]
     ) or range(100)
