@@ -32,7 +32,7 @@ def scramble(email, exam, *, keep_data=False):
         substitute(
             question, [question_substitutions, *substitutions], ["html", "tex", "text"]
         )
-        if "scramble_keep_fixed" in config and isinstance(question["options"], list):
+        if "scramble_options" in config and isinstance(question["options"], list):
             scramble_keep_fixed(question["options"])
             for option in question["options"]:
                 substitute(
