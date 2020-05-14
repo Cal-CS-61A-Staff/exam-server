@@ -27,6 +27,10 @@ def scramble(email, exam, *, keep_data=False):
                 scramble_question(
                     element, [*substitutions, group_substitutions], config
                 )
+        if group.get("pick_some") == 1 and group["title"].trim() == "" and group["text"].trim() == "":
+            element = get_elements(group)[0]
+            group.clear()
+            group.update(element)
 
     def scramble_question(question, substitutions, config):
         question_substitutions = select(question["substitutions"])
