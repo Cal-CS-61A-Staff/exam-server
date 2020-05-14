@@ -32,12 +32,13 @@ def scramble(email, exam, *, keep_data=False):
         if (
             group.get("pick_some") == 1
             and not group["title"].trim()
-            and not group["text"].trim()
             and group["points"] is None
         ):
+            text = group["text"]
             element = get_elements(group)[0]
             group.clear()
             group.update(element)
+            group["text"] = text + "\n" + group["text"]
 
     def scramble_question(question, substitutions, config):
         question_substitutions = select(question["substitutions"])
