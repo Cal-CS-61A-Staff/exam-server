@@ -163,6 +163,7 @@ def consume_rest_of_question(buff):
     substitutions_match = []
     solution = None
     solution_note = None
+    config = {}
     while True:
         line = buff.pop()
         mode, directive, rest = parse_directive(line)
@@ -198,6 +199,7 @@ def consume_rest_of_question(buff):
                         "note": solution_note,
                     },
                     **parse("\n".join(contents)),
+                    "config": config,
                     "options": options,
                     "substitutions": substitutions,
                     "substitutions_match": substitutions_match,
@@ -206,6 +208,8 @@ def consume_rest_of_question(buff):
                 raise SyntaxError("Unexpected END in QUESTION")
         elif mode == "DEFINE":
             parse_define(directive, rest, substitutions, substitutions_match)
+        elif mode == "CONFIG":
+            config[directive] = rest
         else:
             raise SyntaxError("Unexpected directive in QUESTION")
 
