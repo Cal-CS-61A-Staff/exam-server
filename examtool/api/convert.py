@@ -151,9 +151,9 @@ def consume_rest_of_solution(buff, end):
             if directive == end:
                 return parse("\n".join(out))
             else:
-                raise SyntaxError("Unexpected END in QUESTION")
+                raise SyntaxError("Unexpected END in SOLUTION")
         else:
-            raise SyntaxError("Unexpected directive in QUESTION")
+            raise SyntaxError("Unexpected directive in SOLUTION")
 
 
 def consume_rest_of_question(buff):
