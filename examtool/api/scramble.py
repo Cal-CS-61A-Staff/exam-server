@@ -58,6 +58,7 @@ def scramble(email, exam, *, keep_data=False):
                     [*substitutions, question_substitutions],
                     ["html", "tex", "text"],
                 )
+        question.pop("solution", None)
 
     def substitute(target: dict, list_substitutions, attrs):
         merged = {}
