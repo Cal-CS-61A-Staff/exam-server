@@ -58,7 +58,21 @@ def scramble(email, exam, *, keep_data=False):
                     [*substitutions, question_substitutions],
                     ["html", "tex", "text"],
                 )
-        question.pop("solution", None)
+
+        if keep_data and "solution" in question:
+            solution = question["solution"]
+            if "solution" in solution:
+                substitute(
+                    solution, [question_substitutions, *substitutions], ["solution"]
+                )
+            else:
+                substitute(
+                    question["options"],
+                    [question_substitutions, *substitutions],
+                    range(len(question["options"])),
+                )
+        else:
+            question.pop("solution", None)
 
     def substitute(target: dict, list_substitutions, attrs):
         merged = {}
