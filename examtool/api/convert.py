@@ -100,7 +100,7 @@ def parse_input_lines(lines):
                 rest = rest[len(fixed) :]
 
             correct = "CORRECT "
-            is_correct = True
+            is_correct = False
             if rest.startswith(correct):
                 is_correct = True
                 rest = rest[len(correct) :]
@@ -110,7 +110,11 @@ def parse_input_lines(lines):
 
             options.append(parse(rest))
             options[-1]["fixed"] = is_fixed
-        return "multiple_choice" if directive == "OPTION" else "select_all", options, correct_options
+        return (
+            "multiple_choice" if directive == "OPTION" else "select_all",
+            options,
+            correct_options,
+        )
     elif directive in (
         "SHORT_ANSWER",
         "SHORT_CODE_ANSWER",
@@ -122,9 +126,9 @@ def parse_input_lines(lines):
                 "Multiple INPUT directives found for a {}".format(directive)
             )
         if directive == "SHORT_ANSWER":
-            return "short_answer", None
+            return "short_answer", None, None
         elif directive == "SHORT_CODE_ANSWER":
-            return "short_code_answer", None
+            return "short_code_answer", None, None
         try:
             num_lines = int(rest or "10")
         except TypeError:
@@ -188,7 +192,11 @@ def consume_rest_of_question(buff):
                 return {
                     "id": rand_id(),
                     "type": question_type,
-                    "solution": {"text": solution, "options": option_solutions, "note": solution_note},
+                    "solution": {
+                        "solution": solution,
+                        "options": option_solutions,
+                        "note": solution_note,
+                    },
                     **parse("\n".join(contents)),
                     "options": options,
                     "substitutions": substitutions,
