@@ -9,9 +9,10 @@ import click
 import pytz
 
 from examtool.api.database import get_exam, get_roster
+from examtool.api.utils import sanitize_email
 from examtool.api.scramble import scramble
 from examtool.api.gen_latex import render_latex
-from examtool.cli.utils import exam_name_option, hidden_output_folder_option, prettify, sanitize_email
+from examtool.cli.utils import exam_name_option, hidden_output_folder_option, prettify
 
 
 @click.command()
