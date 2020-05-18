@@ -30,9 +30,15 @@ from examtool.cli.utils import exam_name_option, hidden_output_folder_option, pr
 @click.option(
     "--seed",
     default=None,
-    help="Scrambles the exam based off of the seed (E.g. a student's email)."
+    help="Scrambles the exam based off of the seed (E.g. a student's email).",
 )
 @click.option("--subtitle", prompt=False, default="Sample Exam.")
+@click.option(
+    "--without-solutions",
+    default=True,
+    is_flag=True,
+    help="Generates the exam without solutions.",
+)
 @click.option(
     "--json-out",
     default=None,
@@ -40,7 +46,7 @@ from examtool.cli.utils import exam_name_option, hidden_output_folder_option, pr
     help="Exports the JSON to the file specified."
 )
 @hidden_output_folder_option
-def compile(exam, json, md, seed, subtitle, json_out, out):
+def compile(exam, json, md, seed, subtitle, without_solutions, json_out, out):
     """
     Compile one PDF or JSON (from Markdown), unencrypted.
     The exam may be deployed or local (in Markdown or JSON).
@@ -64,7 +70,7 @@ def compile(exam, json, md, seed, subtitle, json_out, out):
 
     if seed:
         print("Scrambling exam...")
-        exam_data = scramble(seed, exam_data)
+        exam_data = scramble(seed, exam_data, keep_data=without_solutions)
 
     if json_out:
         print("Dumping json...")
