@@ -10,7 +10,7 @@ from examtool.api.convert import convert
 from examtool.api.database import get_exam
 from examtool.api.gen_latex import render_latex
 from examtool.api.scramble import scramble
-from examtool.cli.utils import exam_name_option, hidden_output_folder_option, prettify
+from examtool.cli.utils import exam_name_option, hidden_output_folder_option, prettify, sanitize_email
 
 
 @click.command()
@@ -78,7 +78,7 @@ def compile(exam, json, md, seed, subtitle, with_solutions, json_out, out):
         "description": subtitle,
     }
     if seed:
-        settings["emailaddress"] = seed.replace("_", r"\_")
+        settings["emailaddress"] = sanitize_email(seed)
     with render_latex(
         exam_data, 
         settings,

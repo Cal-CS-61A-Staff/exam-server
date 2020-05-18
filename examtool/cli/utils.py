@@ -22,3 +22,6 @@ hidden_target_folder_option = click.option(
 def prettify(course_code):
     m = re.match(r"([a-z]+)([0-9]+[a-z]?)", course_code)
     return m and (m.group(1) + " " + m.group(2)).upper()
+
+def sanitize_email(email):
+    return email.replace("_", r"\_")

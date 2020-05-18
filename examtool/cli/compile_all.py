@@ -11,7 +11,7 @@ import pytz
 from examtool.api.database import get_exam, get_roster
 from examtool.api.scramble import scramble
 from examtool.api.gen_latex import render_latex
-from examtool.cli.utils import exam_name_option, hidden_output_folder_option, prettify
+from examtool.cli.utils import exam_name_option, hidden_output_folder_option, prettify, sanitize_email
 
 
 @click.command()
@@ -48,7 +48,7 @@ def compile_all(exam, subtitle, out, do_twice):
         with render_latex(
             exam_data,
             {
-                "emailaddress": email.replace("_", r"\_"),
+                "emailaddress": sanitize_email(email),
                 "deadline": deadline_string,
                 "coursecode": prettify(exam.split("-")[0]),
                 "description": subtitle,
