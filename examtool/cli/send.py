@@ -16,13 +16,13 @@ from examtool.cli.utils import hidden_target_folder_option, exam_name_option, pr
     "--subject",
     default="{course} Exam PDF",
     help="The email subject to use.",
-    show_default=True
+    show_default=True,
 )
 @click.option(
     "--filename",
     default="Encrypted {course} Exam.pdf",
     help="The PDF filename to use.",
-    show_default=True
+    show_default=True,
 )
 def send(exam, target, email, subject, filename):
     """
