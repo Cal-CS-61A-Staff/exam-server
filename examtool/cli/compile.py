@@ -38,7 +38,7 @@ from examtool.cli.utils import exam_name_option, hidden_output_folder_option, pr
 @click.option(
     "--exam-type",
     default="Final Exam",
-    help="The type of exam you are given. For example 'Final Exam' (default)",
+    help="The type of exam you are given. For example 'Final Exam' (default).",
 )
 @click.option(
     "--json-out",

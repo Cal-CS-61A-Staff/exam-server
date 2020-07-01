@@ -24,7 +24,7 @@ from examtool.cli.utils import exam_name_option, hidden_output_folder_option, pr
 @click.option(
     "--exam-type",
     default="Final Exam",
-    help="The type of exam you are given. For example 'Final Exam' (default)",
+    help="The type of exam you are given. For example 'Final Exam' (default).",
 )
 @click.option("--deadline", default=None, help="Generates exam regardless of if student is in roster with the set deadline.")
 def compile_all(exam, subtitle, out, do_twice, email, exam_type, deadline):
