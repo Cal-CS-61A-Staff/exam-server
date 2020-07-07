@@ -11,7 +11,7 @@ from examtool.api.database import get_exam
 from examtool.api.gen_latex import render_latex
 from examtool.api.utils import sanitize_email
 from examtool.api.scramble import scramble
-from examtool.cli.utils import exam_name_option, hidden_output_folder_option, prettify, determine_semester
+from examtool.cli.utils import determine_semester, exam_name_option, hidden_output_folder_option, prettify
 
 
 @click.command()
