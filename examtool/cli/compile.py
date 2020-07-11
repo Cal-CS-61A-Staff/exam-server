@@ -77,6 +77,19 @@ def compile(exam, json, md, seed, subtitle, with_solutions, exam_type, semester,
     if seed:
         print("Scrambling exam...")
         exam_data = scramble(seed, exam_data, keep_data=with_solutions)
+    
+
+    def remove_solutions_from_groups(groups):
+        for group in groups:
+            # if isinstance(group, dict):
+            group.pop("solution", None) 
+            if group.get("type") == "group":
+                remove_solutions_from_groups(group.get("elements", []))
+
+    if not seed and not with_solutions:
+        print("Removing solutions...")
+        groups = exam_data.get("groups", [])
+        remove_solutions_from_groups(groups)
 
     if json_out:
         print("Dumping json...")
