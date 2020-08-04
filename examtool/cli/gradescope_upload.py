@@ -4,6 +4,8 @@ Developed by Data 8 course staff - all credit goes to them!
 import os
 
 import click
+import requests
+import tqdm
 
 from examtool.cli.utils import exam_name_option, hidden_target_folder_option
 from examtool.api.gradescope_upload import APIClient
@@ -37,7 +39,7 @@ def gradescope_upload(course, assignment, email, password, exam, target):
     client = APIClient()
     client.log_in(email, password)
 
-    for file_name in os.listdir(target):
+    for file_name in tqdm.tqdm(os.listdir(target)):
         if "@" not in file_name:
             continue
         student_email = file_name[:-4]

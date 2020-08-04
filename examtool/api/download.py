@@ -4,6 +4,7 @@ import os
 import pathlib
 
 from fpdf import FPDF
+from tqdm import tqdm
 
 from examtool.api.database import get_exam, get_submissions
 from examtool.api.extract_questions import extract_questions
@@ -107,9 +108,7 @@ def export(template_questions, student_responses, total, exam, out, name_questio
         )
         pdf.output(os.path.join(out, "OUTLINE.pdf"))
 
-    srlen = len(student_responses.items())
-    for i, (email, data) in enumerate(student_responses.items()):
-        print(f"[{exam}]: Exporting {i + 1} / {srlen}", end="\r")
+    for email, data in tqdm(student_responses.items(), desc="Exporting", unit="Exam", dynamic_ncols=True):
         pdf = write_exam(
             data.get("responses"),
             exam,
@@ -141,14 +140,13 @@ def download(exam, emails_to_download: [str]=None, debug: bool=False):
     email_to_data_map = {}
 
     i = 1
-    for email, response in get_submissions(exam=exam):
-        print(f"[{exam}]: Downloading {i}", end="\r")
+    for email, response in tqdm(get_submissions(exam=exam), dynamic_ncols=True, desc="Downloading", unit="Exam"):
         i += 1
         if emails_to_download is not None and email not in emails_to_download:
             continue
 
         if debug and 1 < len(response) < 10:
-            print(email, response)
+            tqdm.write(email, response)
 
         total.append([email])
         for question in template_questions:
