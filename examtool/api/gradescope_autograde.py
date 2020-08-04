@@ -7,8 +7,14 @@ from examtool.api.gradescope_upload import APIClient
 from examtool.api.extract_questions import extract_groups, extract_questions, extract_public
 from fullGSapi.api.client import GradescopeClient
 from fullGSapi.api.assignment_grader import GS_Crop_info, GS_Outline, GS_assignment_Grader, GS_Outline_Question, GS_Question, GroupTypes, RubricItem, QuestionRubric
+from examtool.api.utils import std_out_err_redirect_tqdm
 import os
 import time
+from tqdm import tqdm
+
+def_tqdm_args = {
+    "dynamic_ncols": True
+}
 
 class GradescopeGrader:
     def __init__(self, email: str=None, password: str=None, gs_client: GradescopeClient=None, gs_api_client: APIClient=None):
@@ -98,7 +104,7 @@ class GradescopeGrader:
         # Removing emails which failed to upload
         if failed_uploads:
             print(f"Removing emails which failed to upload. Note: These will NOT be graded! {failed_uploads}")
-            for email in failed_uploads:
+            for email in tqdm(failed_uploads, **def_tqdm_args):
                 email_to_data_map.pop(email)
 
         # For each question, group, add rubric and grade
@@ -115,17 +121,17 @@ class GradescopeGrader:
 
         # Finally we can process each question
         print("Grouping and grading questions...")
-        for qid, question in gs_outline.questions_iterator():
+        for qid, question in tqdm(list(gs_outline.questions_iterator()), desc="Questions Graded", unit="Question", **def_tqdm_args):
             if question_numbers is not None and qid not in question_numbers or blacklist_question_numbers is not None and qid in blacklist_question_numbers:
-                print(f"[{qid}]: Skipping!")
+                tqdm.write(f"[{qid}]: Skipping!")
                 continue
-            print(f"[{qid}]: Processing question...")
+            tqdm.write(f"[{qid}]: Processing question...")
             try:
                 self.process_question(qid, question.get_gs_question(), email_to_data_map, email_to_question_sub_id, name_question_id, sid_question_id)
             except Exception as e:
                 import traceback
-                traceback.print_exc()
-                print(e)
+                traceback.print_exc(file=tqdm)
+                tqdm.write(e)
 
     def add_additional_exams(
         self,
@@ -201,17 +207,17 @@ class GradescopeGrader:
         # Finally we can process each question
         print("Grouping and grading questions...")
         gs_outline = examtool_outline.get_gs_outline()
-        for qid, question in gs_outline.questions_iterator():
+        for qid, question in tqdm(list(gs_outline.questions_iterator()), desc="Questions Graded", unit="Question", **def_tqdm_args):
             if question_numbers is not None and qid not in question_numbers or blacklist_question_numbers is not None and qid in blacklist_question_numbers:
-                print(f"[{qid}]: Skipping!")
+                tqdm.write(f"[{qid}]: Skipping!")
                 continue
-            print(f"[{qid}]: Processing question...")
+            tqdm.write(f"[{qid}]: Processing question...")
             try:
                 self.process_question(qid, question.get_gs_question(), email_to_data_map, email_to_question_sub_id, name_question_id, sid_question_id)
             except Exception as e:
                 import traceback
-                traceback.print_exc()
-                print(e)
+                traceback.print_exc(file=tqdm)
+                tqdm.write(e)
 
     
     def fetch_and_export_examtool_exam_data(
@@ -368,18 +374,17 @@ class GradescopeGrader:
             if emails and student_email not in emails:
                 continue
             email_files.append((file_name, student_email))
-        for i, (file_name, student_email) in enumerate(email_files):
-            print(f"Uploading {i + 1} / {len(email_files)}", end="\r")
-            if not self.gs_api_client.upload_submission(gs_class_id, assignment_id, student_email, os.path.join(out, file_name)):
-                failed_emails.append(student_email)
+        with std_out_err_redirect_tqdm() as orig_stdout:
+            for file_name, student_email in tqdm(email_files, file=orig_stdout, unit="Submission", **def_tqdm_args):
+                if not self.gs_api_client.upload_submission(gs_class_id, assignment_id, student_email, os.path.join(out, file_name)):
+                    failed_emails.append(student_email)
         return failed_emails
 
     def set_group_types(self, outline: GS_Outline, debug=True):
         questions = list(outline.questions_iterator())
-        qlen = len(questions)
-        for i, (qid, question) in enumerate(questions):
-            print(f"Setting group type {i + 1} / {qlen}", end="\r")
-            self.set_group_type(question)
+        with std_out_err_redirect_tqdm() as orig_stdout:
+            for qid, question in tqdm(questions, file=orig_stdout, unit="Question", **def_tqdm_args):
+                self.set_group_type(question)
     
     def set_group_type(self, o_question: GS_Outline_Question):
         question_type = o_question.data.get("type")
@@ -402,21 +407,21 @@ class GradescopeGrader:
         ):
         # Group questions
         if question.data.get("id") in [name_question_id, sid_question_id]:
-            print("Skipping grouping of an id question!")
+            tqdm.write("Skipping grouping of an id question!")
             return
-        print(f"Grouping...")
+        tqdm.write(f"[{qid}]: Grouping...")
         groups = self.group_question(qid, question, email_to_data_map, email_to_question_sub_id_map)
         if groups:
             # Group answers
-            print(f"Syncing groups on gradescope...")
+            tqdm.write(f"[{qid}]: Syncing groups on gradescope...")
             self.sync_groups_on_gradescope(qid, question, groups)
-            print(f"Syncing rubric items...")
+            tqdm.write(f"[{qid}]: Syncing rubric items...")
             rubric = self.sync_rubric(qid, question, groups)
             # in here, add check to see if qid is equal to either name or sid q id so we do not group those.
-            print(f"Applying grades for each group...")
-            self.grade_question(question, rubric, groups)
+            tqdm.write(f"[{qid}]: Applying grades for each group...")
+            self.grade_question(qid, question, rubric, groups)
         else:
-            print(f"Failed to group question {qid}!")
+            tqdm.write(f"[{qid}]: Failed to group question {qid}!")
     
     def group_question(self, qid: str, question: GS_Question, email_to_data_map: dict, email_to_question_sub_id_map: dict):
         qtype = question.data.get("type")
@@ -429,7 +434,7 @@ class GradescopeGrader:
         elif qtype in ["long_answer", "long_code_answer"]:
             return self.group_long_ans_question(qid, question, email_to_data_map, email_to_question_sub_id_map)
         else:
-            print(f"Unsupported question type {qtype} for question {question.data}!")
+            tqdm.write(f"Unsupported question type {qtype} for question {question.data}!")
             return None
 
 
@@ -566,7 +571,7 @@ class GradescopeGrader:
             if solution is not None:
                 solution = solution.get("text")
         if not solution:
-            print(f"[{qid}]: No solution defined for this question! Only grouping blank and std did not receive.")
+            tqdm.write(f"[{qid}]: No solution defined for this question! Only grouping blank and std did not receive.")
             solution = "Correct"
         correct_seq = [True]
         seq_name = [solution]
@@ -681,13 +686,15 @@ class GradescopeGrader:
         failed = False
         while not question.is_grouping_ready():
             timeout = 5
-            print(f"[{qid}]: Question grouping not ready! Retrying in {timeout} seconds" + (" " * timeout), end="\r")
-            for i in range (timeout):
-                print(f"[{qid}]: Question grouping not ready! Retrying in {timeout} seconds" + ("." * (1 + i)), end="\r")
-                time.sleep(1)
-            failed = True
-        if failed:
-            print("")
+            tqdm.write(f"[{qid}]: Question grouping not ready! Retrying in {timeout} seconds!")
+            time.sleep(timeout)
+        #     print(f"[{qid}]: Question grouping not ready! Retrying in {timeout} seconds" + (" " * timeout), end="\r")
+        #     for i in range (timeout):
+        #         print(f"[{qid}]: Question grouping not ready! Retrying in {timeout} seconds" + ("." * (1 + i)), end="\r")
+        #         time.sleep(1)
+        #     failed = True
+        # if failed:
+        #     print("")
         gradescope_groups = question.get_groups()
         gdata = groups["groups"]
         def all_zeros(s: str):
@@ -719,8 +726,7 @@ class GradescopeGrader:
 
         max_attempts = 5
         attempt = 1
-        for i, (g_name, data) in enumerate(gdata.items()):
-            print(f"Syncing group {i + 1} / {len(gdata.items())}", end="\r")
+        for g_name, data in tqdm(gdata.items(), desc=f"[{qid}]: Syncing Groups", unit="Group", **def_tqdm_args):
             sids = data["sids"]
             if not sids:
                 # We do not want to create groups which no questions exist.
@@ -734,11 +740,11 @@ class GradescopeGrader:
                     time.sleep(1)
                     continue
                 if not question.group_submissions(group_id, sids):
-                    print(f"[{qid}]: Failed to group submissions to {group_id}. SIDS: {sids}")
+                    tqdm.write(f"[{qid}]: Failed to group submissions to {group_id}. SIDS: {sids}")
                     failed_groups_names.append(g_name)
                 break
             else:
-                print(f"Failed to create group for {g_name}! ({groups})")
+                tqdm.write(f"[{qid}]: Failed to create group for {g_name}! ({groups})")
                 failed_groups_names.append(g_name)
         
         # This is to decrease down stream errors
@@ -756,10 +762,10 @@ class GradescopeGrader:
             default_rubric_item = rubric.get_rubric_items()[0]
             if default_rubric_item.description == "Correct":
                 if not rubric.update_rubric_item(default_rubric_item, description=seq_names[0]):
-                    print(f"[{qid}]: Failed to update default \"Correct\" rubric item!")
+                    tqdm.write(f"[{qid}]: Failed to update default \"Correct\" rubric item!")
         existing_rubric_items = rubric.get_rubric_items()
-        for i, (name, score) in enumerate(zip(seq_names, rubric_scores)):
-            print(f"Syncing rubric {i + 1} / {len(seq_names)}", end="\r")
+        items = list(zip(seq_names, rubric_scores))
+        for name, score in tqdm(items, desc=f"[{qid}]: Syncing Rubric", unit="Rubric", **def_tqdm_args):
             for existing_rubric_item in existing_rubric_items:
                 if existing_rubric_item.description == name:
                     if float(existing_rubric_item.weight) != score:
@@ -782,7 +788,7 @@ class GradescopeGrader:
         elif qtype in ["long_answer", "long_code_answer"]:
             return self.get_long_ans_rubric_scores(question, seq_names, correct_seq)
         else:
-            print(f"Unsupported question type {qtype} for question {question.data}!")
+            tqdm.write(f"Unsupported question type {qtype} for question {question.data}!")
             return None
 
     def get_mc_rubric_scores(self, question: GS_Question, group_names, correct_seq):
@@ -815,19 +821,18 @@ class GradescopeGrader:
     def get_long_ans_rubric_scores(self, question: GS_Question, group_names, correct_seq):
         return [0] * len(correct_seq)
 
-    def grade_question(self, question: GS_Question, rubric: QuestionRubric, groups: dict):
+    def grade_question(self, qid: str, question: GS_Question, rubric: QuestionRubric, groups: dict):
         question_data = question.get_question_info()
         sub_id_mapping = {str(sub["id"]): sub for sub in question_data["submissions"]}
         glen = len(groups["groups"].items())
-        for i, (group_name, group_data) in enumerate(groups["groups"].items()):
-            print(f"Grading {i + 1} / {glen}", end="\r")
+        for group_name, group_data in tqdm(groups["groups"].items(), desc=f"[{qid}]: Grading", unit="Group", **def_tqdm_args):
             group_sel = group_data["sel_seq"]
             group_sids = group_data["sids"]
             if len(group_sids) > 0:
                 sid = group_sids[0]
                 if not sub_id_mapping[str(sid)]["graded"]:
                     if not rubric.grade(sid, group_sel, save_group=True):
-                        print(f"Failed to grade group {group_name}!")
+                        tqdm.write(f"[{qid}]: Failed to grade group {group_name}!")
 
 
 
