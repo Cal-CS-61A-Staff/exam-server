@@ -908,3 +908,8 @@ class ExamtoolOutline:
     
     def questions_iterator(self):
         yield from self.gs_outline.questions_iterator()
+
+
+class QuestionGrouper:
+    def __init__(self):
+        pass
