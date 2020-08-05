@@ -25,13 +25,24 @@ from examtool.api.gradescope_autograde import GradescopeGrader
 @click.option("--question-numbers", default=None, help="This is a list of question numbers you want to autograde to the assignment (Numbers are defined by the Gradescope question number). Separate question numbers with a comma. If left blank, it will grade all questions from the exams.")
 @click.option("--blacklist-question-numbers", default=None, help="This is a list of question numbers you want the autograder to skip (Numbers are defined by the Gradescope question number). Separate question numbers with a comma. If left blank, it will not blacklist any questions.")
 @click.option("--create/--update", default=True, help="Create will generate the outline and set the grouping type, update will ")
+@click.option("--custom-grouper", default=None, help="This is the path to a python file which contains the dictionary named EXACTLY `examtool_custom_grouper_fns` mapping question IDs or question Gradescope numbers to a function which returns a QuestionGrouper type. See examtool.api.gradescope_autograde for details about that function.")
 @hidden_target_folder_option
-def gradescope_autograde(exam, name_question, sid_question, course, assignment, assignment_title, email, password, emails, blacklist_emails, mutate_emails, question_numbers, blacklist_question_numbers, create, target):
+def gradescope_autograde(exam, name_question, sid_question, course, assignment, assignment_title, email, password, emails, blacklist_emails, mutate_emails, question_numbers, blacklist_question_numbers, create, custom_grouper, target):
     """
     Uploads and autogrades the given exam(s).
     """
     exam = [e.strip() for e in exam.split(",")]
     target = target or "out/export/" + exam[0]
+
+    grouper_map = None
+    import ipdb; ipdb.set_trace()
+    if custom_grouper:
+        if os.path.exists(custom_grouper):
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("module.name", custom_grouper)
+            cg = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(cg)
+            grouper_map = cg.examtool_custom_grouper_fns
 
     grader = GradescopeGrader(email=email, password=password)
     email_mutation_list = None
@@ -49,9 +60,9 @@ def gradescope_autograde(exam, name_question, sid_question, course, assignment, 
     if blacklist_question_numbers is not None:
         blacklist_question_numbers = extract_list(blacklist_question_numbers)
     if create or assignment is None:
-        grader.main(exam, target, name_question, sid_question, course, gs_assignment_id=assignment, gs_assignment_title=assignment_title, emails=emails, blacklist_emails=blacklist_emails, email_mutation_list=email_mutation_list, question_numbers=question_numbers, blacklist_question_numbers=blacklist_question_numbers)
+        grader.main(exam, target, name_question, sid_question, course, gs_assignment_id=assignment, gs_assignment_title=assignment_title, emails=emails, blacklist_emails=blacklist_emails, email_mutation_list=email_mutation_list, question_numbers=question_numbers, blacklist_question_numbers=blacklist_question_numbers, custom_grouper_map=grouper_map)
     else:
-        grader.add_additional_exams(exam, target, name_question, sid_question, course, assignment, emails=emails, blacklist_emails=blacklist_emails, email_mutation_list=email_mutation_list, question_numbers=question_numbers, blacklist_question_numbers=blacklist_question_numbers)
+        grader.add_additional_exams(exam, target, name_question, sid_question, course, assignment, emails=emails, blacklist_emails=blacklist_emails, email_mutation_list=email_mutation_list, question_numbers=question_numbers, blacklist_question_numbers=blacklist_question_numbers, custom_grouper_map=grouper_map)
 
 
 if __name__ == '__main__':
