@@ -2,6 +2,7 @@
 Developed by ThaumicMekanism [Stephan K.] - all credit goes to him!
 """
 
+from typing import Callable, List
 import examtool.api.download
 from examtool.api.gradescope_upload import APIClient
 from examtool.api.extract_questions import extract_groups, extract_questions, extract_public
@@ -52,7 +53,8 @@ class GradescopeGrader:
         blacklist_emails: [str] = None,
         email_mutation_list: {str: str} = {},
         question_numbers: [str] = None,
-        blacklist_question_numbers: [str] = None
+        blacklist_question_numbers: [str] = None,
+        custom_grouper_map: {str: Callable[[str, GS_Question, dict, dict], "QuestionGrouper"]} = None,
         ):
         if gs_assignment_title is None:
             gs_assignment_title = "Examtool Exam"
@@ -127,11 +129,11 @@ class GradescopeGrader:
                 continue
             tqdm.write(f"[{qid}]: Processing question...")
             try:
-                self.process_question(qid, question.get_gs_question(), email_to_data_map, email_to_question_sub_id, name_question_id, sid_question_id)
+                self.process_question(qid, question.get_gs_question(), email_to_data_map, email_to_question_sub_id, name_question_id, sid_question_id, custom_grouper_map)
             except Exception as e:
                 import traceback
                 traceback.print_exc(file=tqdm)
-                tqdm.write(e)
+                tqdm.write(str(e))
 
     def add_additional_exams(
         self,
@@ -145,7 +147,8 @@ class GradescopeGrader:
         blacklist_emails: [str] = None,
         email_mutation_list: {str: str} = {},
         question_numbers: [str] = None,
-        blacklist_question_numbers: [str] = None
+        blacklist_question_numbers: [str] = None,
+        custom_grouper_map: {str: Callable[[str, GS_Question, dict, dict], "QuestionGrouper"]} = None,
         ):
         """
         If emails is None, we will import the entire exam, if it has emails in it, it will only upload submissions
@@ -213,11 +216,11 @@ class GradescopeGrader:
                 continue
             tqdm.write(f"[{qid}]: Processing question...")
             try:
-                self.process_question(qid, question.get_gs_question(), email_to_data_map, email_to_question_sub_id, name_question_id, sid_question_id)
+                self.process_question(qid, question.get_gs_question(), email_to_data_map, email_to_question_sub_id, name_question_id, sid_question_id, custom_grouper_map)
             except Exception as e:
                 import traceback
                 traceback.print_exc(file=tqdm)
-                tqdm.write(e)
+                tqdm.write(str(e))
 
     
     def fetch_and_export_examtool_exam_data(
@@ -403,14 +406,15 @@ class GradescopeGrader:
         email_to_data_map: dict, 
         email_to_question_sub_id_map: dict, 
         name_question_id: str, 
-        sid_question_id: str
+        sid_question_id: str,
+        custom_grouper_map: {str: Callable[[str, GS_Question, dict, dict], "QuestionGrouper"]}
         ):
         # Group questions
         if question.data.get("id") in [name_question_id, sid_question_id]:
             tqdm.write("Skipping grouping of an id question!")
             return
         tqdm.write(f"[{qid}]: Grouping...")
-        groups = self.group_question(qid, question, email_to_data_map, email_to_question_sub_id_map)
+        groups = self.group_question(qid, question, email_to_data_map, email_to_question_sub_id_map, custom_grouper_map)
         if groups:
             # Group answers
             tqdm.write(f"[{qid}]: Syncing groups on gradescope...")
@@ -423,12 +427,24 @@ class GradescopeGrader:
         else:
             tqdm.write(f"[{qid}]: Failed to group question {qid}!")
     
-    def group_question(self, qid: str, question: GS_Question, email_to_data_map: dict, email_to_question_sub_id_map: dict):
+    def group_question(
+        self, 
+        qid: str, 
+        question: GS_Question, 
+        email_to_data_map: dict, 
+        email_to_question_sub_id_map: dict, 
+        custom_grouper_map: {str: Callable[[str, GS_Question, dict, dict], "QuestionGrouper"]}
+        ):
+        if custom_grouper_map is not None:
+            examtool_qid = question.data.get("id")
+            if examtool_qid:
+                return custom_grouper_map[qid](qid, question, email_to_data_map, email_to_question_sub_id_map)
+            if qid in custom_grouper_map:
+                return custom_grouper_map[qid](qid, question, email_to_data_map, email_to_question_sub_id_map)
+        # Default handler
         qtype = question.data.get("type")
-        if qtype == "multiple_choice":
+        if qtype in ["multiple_choice", "select_all"]:
             return self.group_mc_question(qid, question, email_to_data_map, email_to_question_sub_id_map)
-        elif qtype == "select_all":
-            return self.group_sel_all_question(qid, question, email_to_data_map, email_to_question_sub_id_map)
         elif qtype in ["short_answer", "short_code_answer"]:
             return self.group_short_ans_question(qid, question, email_to_data_map, email_to_question_sub_id_map)
         elif qtype in ["long_answer", "long_code_answer"]:
@@ -438,7 +454,14 @@ class GradescopeGrader:
             return None
 
 
-    def group_mc_question(self, qid: str, question: GS_Question, email_to_data_map: dict, email_to_question_sub_id_map: dict):
+    def group_mc_question(
+        self, 
+        qid: str, 
+        question: GS_Question, 
+        email_to_data_map: dict, 
+        email_to_question_sub_id_map: dict, 
+        custom_rubric_weights_fn: Callable[[GS_Question, List[str], List[bool]], List[float]]=None
+        ):
         data = question.data
         # This is a list of correct options from left (top) to right (bottom)
         correct_seq = []
@@ -460,16 +483,9 @@ class GradescopeGrader:
         correct_seq.append(None)
         seq_name.append("Student did not receive this question")
 
-        g_data = {}
-        groups = {
-            "correct_seq": correct_seq,
-            "seq_names": seq_name,
-            # groups is a dict of tuples where index:
-            # key is the name of the group
-            # "sids" is the list of submission id's which selected that
-            # "sel_seq" is the selected sequence (list of true false for selected)
-            "groups": g_data,
-        }
+        rubric_weights = self.get_basic_rubric_scores(question, seq_name, correct_seq) if custom_rubric_weights_fn is None else custom_rubric_weights_fn(question, seq_name, correct_seq)
+
+        groups = QuestionGrouper(question, rubric=[RubricItem(description=item[0], weight=item[1]) for item in zip(seq_name, rubric_weights)])
 
         def list_to_str(l):
             s = ""
@@ -487,82 +503,27 @@ class GradescopeGrader:
             elif response == []:
                 selection[-2] = True
             else:
-                for i, option in enumerate(all_options):
-                    selection[i] = option == response
-
-            s = list_to_str(selection)
-            sid = email_to_question_sub_id_map[email][qid]
-            if s not in g_data:
-                g_data[s] = {
-                    "sids": [],
-                    "sel_seq": selection
-                }
-            g_data[s]["sids"].append(sid)
-        return groups
-
-    def group_sel_all_question(self, qid: str, question: GS_Question, email_to_data_map: dict, email_to_question_sub_id_map: dict):
-        data = question.data
-        # This is a list of correct options from left (top) to right (bottom)
-        correct_seq = []
-        seq_name = []
-        solution_options = data.get("solution", {})
-        if solution_options is not None:
-            solution_options = solution_options.get("options", [])
-        if solution_options is None:
-            solution_options = []
-        all_options = [option.get("text") for option in data.get("options", [])]
-        for option in all_options:
-            correct_seq.append(option in solution_options)
-            seq_name.append(option)
-
-        # Add blank option
-        correct_seq.append(None)
-        seq_name.append("Blank")
-        # Add student did not receive this question
-        correct_seq.append(None)
-        seq_name.append("Student did not receive this question")
-
-        g_data = {}
-        groups = {
-            "correct_seq": correct_seq,
-            "seq_names": seq_name,
-            # groups is a dict of tuples where index:
-            # key is the name of the group
-            # "sids" is the list of submission id's which selected that
-            # "sel_seq" is the selected sequence (list of true false for selected)
-            "groups": g_data,
-        }
-
-        def list_to_str(l):
-            s = ""
-            for item in l:
-                s += str(int(item))
-            return s
-
-        eqid = question.data["id"]
-        for email, data in email_to_data_map.items():
-            responses = data.get("responses", {})
-            response = responses.get(eqid)
-            selection = [False] * len(correct_seq)
-            if response is None:
-                selection[-1] = True
-            elif response == []:
-                selection[-2] = True
-            else:
+                if not isinstance(response, list):
+                    response = [response]
                 for i, option in enumerate(all_options):
                     selection[i] = option in response
 
             s = list_to_str(selection)
             sid = email_to_question_sub_id_map[email][qid]
-            if s not in g_data:
-                g_data[s] = {
-                    "sids": [],
-                    "sel_seq": selection
-                }
-            g_data[s]["sids"].append(sid)
+            if s not in groups:
+                groups.add_group(QuestionGroup(s, selection))
+            groups.get_group(s).add_sid(sid)
         return groups
 
-    def group_short_ans_question(self, qid: str, question: GS_Question, email_to_data_map: dict, email_to_question_sub_id_map: dict, lower_check: bool=True):
+    def group_short_ans_question(
+        self, 
+        qid: str, 
+        question: GS_Question, 
+        email_to_data_map: dict, 
+        email_to_question_sub_id_map: dict, 
+        lower_check: bool=True,
+        custom_rubric_weights_fn: Callable[[GS_Question, List[str], List[bool]], List[float]]=None
+        ):
         data = question.data
         # This is a list of correct options from left (top) to right (bottom)
         solution = data.get("solution", {})
@@ -586,16 +547,9 @@ class GradescopeGrader:
         correct_seq.append(None)
         seq_name.append("Student did not receive this question")
 
-        g_data = {}
-        groups = {
-            "correct_seq": correct_seq,
-            "seq_names": seq_name,
-            # groups is a dict of tuples where index:
-            # key is the name of the group
-            # "sids" is the list of submission id's which selected that
-            # "sel_seq" is the selected sequence (list of true false for selected)
-            "groups": g_data,
-        }
+        rubric_weights = self.get_basic_rubric_scores(question, seq_name, correct_seq) if custom_rubric_weights_fn is None else custom_rubric_weights_fn(question, seq_name, correct_seq)
+
+        groups = QuestionGrouper(question, rubric=[RubricItem(description=item[0], weight=item[1]) for item in zip(seq_name, rubric_weights)])
 
         eqid = question.data["id"]
         for email, data in email_to_data_map.items():
@@ -621,15 +575,18 @@ class GradescopeGrader:
                         selection[1] = True
 
             sid = email_to_question_sub_id_map[email][qid]
-            if response not in g_data:
-                g_data[response] = {
-                    "sids": [],
-                    "sel_seq": selection
-                }
-            g_data[response]["sids"].append(sid)
+            if response not in groups:
+                groups.add_group(QuestionGroup(response, selection))
+            groups.get_group(response).add_sid(sid)
         return groups
 
-    def group_long_ans_question(self, qid: str, question: GS_Question, email_to_data_map: dict, email_to_question_sub_id_map: dict):
+    def group_long_ans_question(
+        self, 
+        qid: str, 
+        question: GS_Question, 
+        email_to_data_map: dict, 
+        email_to_question_sub_id_map: dict
+        ):
         """
         We will only be grouping students who did not get the question or left it blank.
         """
@@ -645,25 +602,15 @@ class GradescopeGrader:
         correct_seq.append(None)
         seq_name.append("Student did not receive this question")
 
-        g_data = {
-            "Blank": {
-                "sids": [],
-                "sel_seq": [False, True, False],
-            },
-            "Student did not receive this question": {
-                "sids": [],
-                "sel_seq": [False, False, True]
-            },
-        }
-        groups = {
-            "correct_seq": correct_seq,
-            "seq_names": seq_name,
-            # groups is a dict of tuples where index:
-            # key is the name of the group
-            # "sids" is the list of submission id's which selected that
-            # "sel_seq" is the selected sequence (list of true false for selected)
-            "groups": g_data,
-        }
+        rubric_weights = self.get_long_ans_rubric_scores(question, seq_name, correct_seq)
+
+        groups = QuestionGrouper(question, rubric=[RubricItem(description=item[0], weight=item[1]) for item in zip(seq_name, rubric_weights)])
+
+        group_blank = QuestionGroup("Blank", [False, True, False])
+        groups.add_group(group_blank)
+        
+        group_sdnrtq = QuestionGroup("Student did not receive this question", [False, False, True])
+        groups.add_group(group_sdnrtq)
 
         eqid = question.data["id"]
         for email, data in email_to_data_map.items():
@@ -672,12 +619,12 @@ class GradescopeGrader:
             if not response:
                 sid = email_to_question_sub_id_map[email][qid]
                 if response is None:
-                    g_data["Student did not receive this question"]["sids"].append(sid)            
+                    group_sdnrtq.add_sid(sid)            
                 elif response == "":
-                    g_data["Blank"]["sids"].append(sid)
+                    group_blank.add_sid(sid)
         return groups
 
-    def sync_groups_on_gradescope(self, qid: str, question: GS_Question, groups: dict):
+    def sync_groups_on_gradescope(self, qid: str, question: GS_Question, groups: "QuestionGrouper"):
         """
         Groups is a list of name, submission_id, selected answers
         """
@@ -696,42 +643,43 @@ class GradescopeGrader:
         # if failed:
         #     print("")
         gradescope_groups = question.get_groups()
-        gdata = groups["groups"]
         def all_zeros(s: str):
             return s and all(v=='0' for v in s)
-        def set_group(g_name, data, gs_group):
-            data["id"] = gs_group.get("id")
-        for g_name, data in gdata.items():
+        def set_group(group, gs_group):
+            group.set_id(gs_group.get("id"))
+        for group in groups.get_groups():
+            g_name = group.get_name()
             for gs_group in gradescope_groups:
                 if gs_group["question_type"] == "mc":
                     # The question type is mc so lets group by the internal mc
                     if g_name == "Blank":
                         # This is the blank group, lets use the internal label to group
                         if all_zeros(gs_group["internal_title"]):
-                            set_group(g_name, data, gs_group)
+                            set_group(group, gs_group)
                     else:
                         flip_g_name = g_name[:-2][::-1]
                         if gs_group["internal_title"] is not None:
                             if flip_g_name == gs_group["internal_title"] and g_name[len(g_name) - 1] != "1":
-                                set_group(g_name, data, gs_group)
+                                set_group(group, gs_group)
                         else:
                             if g_name == gs_group["title"]:
-                                set_group(g_name, data, gs_group)
+                                set_group(group, gs_group)
                 else:
                     # The question type is not mc so we should group on title and internal title for blank.
                     # The internal title should only say Blank for default blank grouped submissions.
                     # We then check the normal title if this is not true
                     if g_name == gs_group["internal_title"] or g_name == gs_group["title"]:
-                        set_group(g_name, data, gs_group)
+                        set_group(group, gs_group)
 
         max_attempts = 5
         attempt = 1
-        for g_name, data in tqdm(gdata.items(), desc=f"[{qid}]: Syncing Groups", unit="Group", **def_tqdm_args):
-            sids = data["sids"]
+        for group in tqdm(groups.get_groups(), desc=f"[{qid}]: Syncing Groups", unit="Group", **def_tqdm_args):
+            g_name = group.get_name()
+            sids = group.get_sids()
             if not sids:
                 # We do not want to create groups which no questions exist.
                 continue
-            group_id = data.get("id", None)
+            group_id = group.get_id()
             while attempt < max_attempts:
                 if not group_id:
                     group_id = question.add_group(g_name)
@@ -749,49 +697,10 @@ class GradescopeGrader:
         
         # This is to decrease down stream errors
         for failed_group_name in failed_groups_names:
-            gdata.pop(failed_group_name, None)
+            groups.remove(failed_group_name)
     
-    def sync_rubric(self, qid: str, question: GS_Question, groups: dict) -> QuestionRubric:
-        rubric = QuestionRubric(question)
-        seq_names = groups["seq_names"]
-        correct_seq = groups["correct_seq"]
-        if len(seq_names) == 0:
-            return rubric
-        rubric_scores = self.get_rubric_scores(question, seq_names, correct_seq)
-        if len(rubric) == 1:
-            default_rubric_item = rubric.get_rubric_items()[0]
-            if default_rubric_item.description == "Correct":
-                if not rubric.update_rubric_item(default_rubric_item, description=seq_names[0]):
-                    tqdm.write(f"[{qid}]: Failed to update default \"Correct\" rubric item!")
-        existing_rubric_items = rubric.get_rubric_items()
-        items = list(zip(seq_names, rubric_scores))
-        for name, score in tqdm(items, desc=f"[{qid}]: Syncing Rubric", unit="Rubric", **def_tqdm_args):
-            for existing_rubric_item in existing_rubric_items:
-                if existing_rubric_item.description == name:
-                    if float(existing_rubric_item.weight) != score:
-                        rubric.update_rubric_item(existing_rubric_item, weight=score)
-                    break
-            else:
-                rubric_item = RubricItem(description=name, weight=score)
-                rubric.add_rubric_item(rubric_item)
-
-        return rubric
-
-    def get_rubric_scores(self,question: GS_Question, seq_names: [str], correct_seq: [bool]):
-        qtype = question.data.get("type")
-        if qtype == "multiple_choice":
-            return self.get_mc_rubric_scores(question, seq_names, correct_seq)
-        elif qtype == "select_all":
-            return self.get_sel_all_rubric_scores(question, seq_names, correct_seq)
-        elif qtype in ["short_answer", "short_code_answer"]:
-            return self.get_short_ans_rubric_scores(question, seq_names, correct_seq)
-        elif qtype in ["long_answer", "long_code_answer"]:
-            return self.get_long_ans_rubric_scores(question, seq_names, correct_seq)
-        else:
-            tqdm.write(f"Unsupported question type {qtype} for question {question.data}!")
-            return None
-
-    def get_mc_rubric_scores(self, question: GS_Question, group_names, correct_seq):
+    @classmethod
+    def get_basic_rubric_scores(cls, question: GS_Question, group_names, correct_seq):
         scores = []
         num_correct = sum([1 for correct in correct_seq if correct])
         num_choices = sum([1 for correct in correct_seq if correct is not None])
@@ -810,24 +719,41 @@ class GradescopeGrader:
                 else:
                     scores.append(-rubric_weight)
         return scores
-
-
-    def get_sel_all_rubric_scores(self, question: GS_Question, group_names, correct_seq):
-        return self.get_mc_rubric_scores(question, group_names, correct_seq)
-
-    def get_short_ans_rubric_scores(self, question: GS_Question, group_names, correct_seq):
-        return self.get_mc_rubric_scores(question, group_names, correct_seq)
-
-    def get_long_ans_rubric_scores(self, question: GS_Question, group_names, correct_seq):
+    
+    @classmethod
+    def get_long_ans_rubric_scores(cls, question: GS_Question, group_names, correct_seq):
         return [0] * len(correct_seq)
+
+    def sync_rubric(self, qid: str, question: GS_Question, groups: "QuestionGrouper") -> QuestionRubric:
+        rubric = QuestionRubric(question)
+        if len(groups) == 0:
+            return rubric
+
+        qrubric: [RubricItem] = groups.get_rubric()
+
+        if len(rubric) == 1:
+            default_rubric_item = rubric.get_rubric_items()[0]
+            if default_rubric_item.description == "Correct":
+                first_item = qrubric[0]
+                if not rubric.update_rubric_item(default_rubric_item, description=first_item.description, weight=first_item.weight):
+                    tqdm.write(f"[{qid}]: Failed to update default \"Correct\" rubric item!")
+                qrubric.remove(first_item)
+
+        existing_rubric_items = rubric.get_rubric_items()
+        existing_rubric_items_desc = [item.description for item in existing_rubric_items]
+
+        for rubric_item in tqdm(qrubric, desc=f"[{qid}]: Syncing Rubric", unit="Rubric", **def_tqdm_args):
+            if rubric_item.description not in existing_rubric_items_desc:
+                rubric.add_rubric_item(rubric_item)
+
+        return rubric
 
     def grade_question(self, qid: str, question: GS_Question, rubric: QuestionRubric, groups: dict):
         question_data = question.get_question_info()
         sub_id_mapping = {str(sub["id"]): sub for sub in question_data["submissions"]}
-        glen = len(groups["groups"].items())
-        for group_name, group_data in tqdm(groups["groups"].items(), desc=f"[{qid}]: Grading", unit="Group", **def_tqdm_args):
-            group_sel = group_data["sel_seq"]
-            group_sids = group_data["sids"]
+        for group in tqdm(groups.get_groups(), desc=f"[{qid}]: Grading", unit="Group", **def_tqdm_args):
+            group_sel = group.get_selected_items()
+            group_sids = group.get_sids()
             if len(group_sids) > 0:
                 sid = group_sids[0]
                 if not sub_id_mapping[str(sid)]["graded"]:
@@ -914,7 +840,68 @@ class ExamtoolOutline:
     def questions_iterator(self):
         yield from self.gs_outline.questions_iterator()
 
+class QuestionGroup:
+    def __init__(self, name: str, selected_rubric_items: [bool], gid: str=None):
+        self.name = name
+        self.selected_rubric_items = selected_rubric_items # Bool array of selected items.
+        self.gid = gid
+        self.sids = set()
+
+    def get_name(self):
+        return self.name
+
+    def get_id(self):
+        return self.gid
+
+    def set_id(self, gid: str):
+        self.gid = gid
+
+    def get_sids(self):
+        return list(self.sids)
+
+    def add_sid(self, sid: str):
+        self.sids.add(sid)
+    
+    def add_sids(self, sids: [str]):
+        self.sids = self.sids.union(sids)
+
+    def get_selected_items(self):
+        return self.selected_rubric_items
 
 class QuestionGrouper:
-    def __init__(self):
-        pass
+    def __init__(
+        self,
+        question: GS_Question,
+        rubric: [RubricItem], # This is a list of rubric items.
+        groups: {str: QuestionGroup}=None,
+        ):
+        self.groups = groups
+        if not self.groups:
+            self.groups = {}
+        self.question = question
+        self.rubric = rubric
+
+    def get_groups(self):
+        return self.groups.values()
+
+    def get_group(self, name):
+        return self.groups.get(name)
+
+    def add_group(self, group: QuestionGroup):
+        self.groups[group.get_name()] = group
+
+
+    def remove(self, group_name):
+        for g in self.groups:
+            if g.get_name() == group_name:
+                self.groups.remove(g)
+                return
+    
+    def __len__(self):
+        return len(self.groups)
+
+    def get_rubric(self) -> [RubricItem]:
+        return self.rubric
+
+    def __contains__(self, key):
+        return key in self.groups
