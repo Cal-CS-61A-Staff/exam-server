@@ -737,7 +737,7 @@ class GradescopeGrader:
                 first_item = qrubric[0]
                 if not rubric.update_rubric_item(default_rubric_item, description=first_item.description, weight=first_item.weight):
                     tqdm.write(f"[{qid}]: Failed to update default \"Correct\" rubric item!")
-                qrubric.remove(first_item)
+                # qrubric.remove(first_item)
 
         existing_rubric_items = rubric.get_rubric_items()
         existing_rubric_items_desc = [item.description for item in existing_rubric_items]
