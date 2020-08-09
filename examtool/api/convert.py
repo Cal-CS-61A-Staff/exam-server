@@ -50,7 +50,7 @@ class LineBuffer:
 def parse_directive(line):
     if not any(
             line.startswith(f"# {x} ")
-            for x in ["BEGIN", "END", "INPUT", "CONFIG", "DEFINE"]
+            for x in ["BEGIN", "END", "INPUT", "CONFIG", "DEFINE", "IMPORT"]
     ):
         return None, None, None
     tokens = line.split(" ", 3)
@@ -419,13 +419,13 @@ def import_file(filepath: str) -> str:
     with open(filepath, "r") as f:
         return f.read()
 
-IMPORT_STATEMENT = "# IMPORT "
 def handle_imports(buff: LineBuffer, path: str):
     while not buff.empty():
         line = buff.pop()
-        if line.startswith(IMPORT_STATEMENT):
+        mode, directive, rest = parse_directive(line)
+        if mode == "IMPORT":
             buff.remove_prev()
-            filepath = line[len(IMPORT_STATEMENT):]
+            filepath = " ".join([directive, rest]).rstrip()
             if path:
                 filepath = os.path.join(path, filepath)
             new_buff = LineBuffer(import_file(filepath))
