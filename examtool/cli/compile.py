@@ -69,7 +69,7 @@ def compile(exam, json, md, seed, subtitle, with_solutions, exam_type, semester,
     elif md:
         print("Compiling exam...")
         exam_text_data = md.read()
-        exam_data = convert(exam_text_data)
+        exam_data = convert(exam_text_data, path=os.path.dirname(md.name))
     else:
         print("Fetching exam...")
         exam_data = get_exam(exam=exam)

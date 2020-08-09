@@ -2,6 +2,7 @@ import json
 import random
 import re
 import string
+import os
 
 import pypandoc
 
@@ -11,8 +12,21 @@ tex_convert = lambda x: pypandoc.convert_text(x, "latex", "md")
 
 class LineBuffer:
     def __init__(self, text):
-        self.lines = text.strip().split("\n")
+        self.lines = []
         self.i = 0
+        self.insert_next(text)
+    
+    def insert_next(self, text):
+        if isinstance(text, list):
+            new_lines = text
+        elif isinstance(text, str):
+            new_lines = text.strip().split("\n")
+        elif isinstance(text, LineBuffer):
+            new_lines = text.lines
+            self.i += text.i
+        else:
+            raise SyntaxError(f"LineBuffer: unsupported type to insert: {type(text)}")
+        self.lines = self.lines[:self.i] + new_lines + self.lines[self.i:]
 
     def pop(self) -> str:
         if self.i == len(self.lines):
@@ -20,8 +34,17 @@ class LineBuffer:
         self.i += 1
         return self.lines[self.i - 1]
 
+    def remove_prev(self):
+        self.i -= 1
+        if self.i < 0:
+            self.i = 0
+        del self.lines[self.i]
+
     def empty(self):
         return self.i == len(self.lines)
+
+    def reset(self):
+        self.i = 0
 
 
 def parse_directive(line):
@@ -289,7 +312,7 @@ def consume_rest_of_group(buff, end):
             raise SyntaxError("Unexpected directive in GROUP")
 
 
-def _convert(text):
+def _convert(text, path=None):
     buff = LineBuffer(text)
     groups = []
     public = None
@@ -298,6 +321,8 @@ def _convert(text):
     substitutions_match = []
 
     try:
+        if path is not None:
+            handle_imports(buff, path)
         while not buff.empty():
             line = buff.pop()
             if not line.strip():
@@ -381,9 +406,30 @@ def pandoc(target):
     return json.dumps(target, default=pandoc_dump)
 
 
-def convert(text):
-    return json.loads(convert_str(text))
+def convert(text, path=None):
+    return json.loads(convert_str(text, path=path))
 
 
-def convert_str(text):
-    return pandoc(_convert(text))
+def convert_str(text, path=None):
+    return pandoc(_convert(text, path=path))
+
+def import_file(filepath: str) -> str:
+    if not filepath:
+        raise SyntaxError("IMPORT must take in a filepath")
+    with open(filepath, "r") as f:
+        return f.read()
+
+IMPORT_STATEMENT = "# IMPORT "
+def handle_imports(buff: LineBuffer, path: str):
+    while not buff.empty():
+        line = buff.pop()
+        if line.startswith(IMPORT_STATEMENT):
+            buff.remove_prev()
+            filepath = line[len(IMPORT_STATEMENT):]
+            if path:
+                filepath = os.path.join(path, filepath)
+            new_buff = LineBuffer(import_file(filepath))
+            folderpath = os.path.dirname(filepath)
+            handle_imports(new_buff, folderpath)
+            buff.insert_next(new_buff)
+    buff.reset()
