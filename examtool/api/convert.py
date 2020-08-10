@@ -6,6 +6,8 @@ import os
 
 import pypandoc
 
+from tqdm import tqdm
+
 html_convert = lambda x: pypandoc.convert_text(x, "html5", "md", ["--mathjax"])
 tex_convert = lambda x: pypandoc.convert_text(x, "latex", "md")
 
@@ -15,6 +17,7 @@ class LineBuffer:
         self.lines = []
         self.i = 0
         self.insert_next(text)
+        self.onpop = lambda x: None
     
     def insert_next(self, text):
         if isinstance(text, list):
@@ -32,6 +35,7 @@ class LineBuffer:
         if self.i == len(self.lines):
             raise SyntaxError("File terminated unexpectedly")
         self.i += 1
+        self.onpop(self)
         return self.lines[self.i - 1]
 
     def remove_prev(self):
@@ -322,10 +326,12 @@ def _convert(text, path=None):
     config = {}
     substitutions = {}
     substitutions_match = []
-
+    pbar = None
     try:
         if path is not None:
             handle_imports(buff, path)
+        pbar = tqdm(total=len(buff.lines), unit="line", dynamic_ncols=True)
+        buff.onpop = lambda b: pbar.update()
         while not buff.empty():
             line = buff.pop()
             if not line.strip():
@@ -360,7 +366,10 @@ def _convert(text, path=None):
                 parse_define(directive, rest, substitutions, substitutions_match)
             else:
                 raise SyntaxError("Unexpected directive")
+        pbar.close()
     except SyntaxError as e:
+        if pbar:
+            pbar.close()
         raise SyntaxError("Parse stopped on line {} with error {}".format(buff.location(), e))
 
     return {
