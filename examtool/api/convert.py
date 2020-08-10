@@ -46,6 +46,9 @@ class LineBuffer:
     def reset(self):
         self.i = 0
 
+    def location(self):
+        return self.i
+
 
 def parse_directive(line):
     if not any(
@@ -358,7 +361,7 @@ def _convert(text, path=None):
             else:
                 raise SyntaxError("Unexpected directive")
     except SyntaxError as e:
-        raise SyntaxError("Parse stopped on line {} with error {}".format(buff.i, e))
+        raise SyntaxError("Parse stopped on line {} with error {}".format(buff.location(), e))
 
     return {
         "public": public,
