@@ -218,7 +218,7 @@ def consume_rest_of_question(buff):
             elif directive == "NOTE":
                 solution_note = consume_rest_of_solution(buff, directive)
             else:
-                raise SyntaxError("Unexpected BEGIN in QUESTION")
+                raise SyntaxError(f"Unexpected BEGIN ({directive}) in QUESTION")
         elif mode == "END":
             if directive == "QUESTION":
                 question_type, options, option_solutions = parse_input_lines(
@@ -243,13 +243,13 @@ def consume_rest_of_question(buff):
                     "substitutions_match": substitutions_match,
                 }
             else:
-                raise SyntaxError("Unexpected END in QUESTION")
+                raise SyntaxError(f"Unexpected END {directive} in QUESTION")
         elif mode == "DEFINE":
             parse_define(directive, rest, substitutions, substitutions_match)
         elif mode == "CONFIG":
             config[directive] = rest
         else:
-            raise SyntaxError("Unexpected directive in QUESTION")
+            raise SyntaxError(f"Unexpected directive ({mode}) in QUESTION")
 
 
 def consume_rest_of_group(buff, end):
@@ -310,9 +310,9 @@ def consume_rest_of_group(buff, end):
             elif directive == "SCRAMBLE":
                 scramble = True
             else:
-                raise SyntaxError("Unexpected CONFIG directive in GROUP")
+                raise SyntaxError(f"Unexpected CONFIG directive ({directive}) in GROUP")
         else:
-            raise SyntaxError("Unexpected directive in GROUP")
+            raise SyntaxError(f"Unexpected directive ({mode}) in GROUP")
 
 
 def _convert(text, path=None):
