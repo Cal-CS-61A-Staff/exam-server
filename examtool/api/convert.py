@@ -131,7 +131,7 @@ def parse_input_lines(lines):
     correct_options = []
     if directive == "OPTION" or directive == "SELECT":
         options = []
-        for line in lines:
+        for line in tqdm(lines, unit="line", dynamic_ncols=True, leave=False, desc="Question Options"):
             _, other_directive, rest = parse_directive(line)
             if other_directive != directive:
                 raise SyntaxError("Multiple INPUT types found in a single QUESTION")
@@ -193,9 +193,9 @@ def consume_rest_of_solution(buff, end):
             if directive == end:
                 return parse("\n".join(out))
             else:
-                raise SyntaxError("Unexpected END in SOLUTION")
+                raise SyntaxError(f"Unexpected END ({directive if directive else line}) in SOLUTION")
         else:
-            raise SyntaxError("Unexpected directive in SOLUTION")
+            raise SyntaxError(f"Unexpected directive ({mode if mode else line}) in SOLUTION")
 
 
 def consume_rest_of_question(buff):
@@ -222,7 +222,7 @@ def consume_rest_of_question(buff):
             elif directive == "NOTE":
                 solution_note = consume_rest_of_solution(buff, directive)
             else:
-                raise SyntaxError(f"Unexpected BEGIN ({directive}) in QUESTION")
+                raise SyntaxError(f"Unexpected BEGIN ({directive if directive else line}) in QUESTION")
         elif mode == "END":
             if directive == "QUESTION":
                 question_type, options, option_solutions = parse_input_lines(
@@ -247,13 +247,13 @@ def consume_rest_of_question(buff):
                     "substitutions_match": substitutions_match,
                 }
             else:
-                raise SyntaxError(f"Unexpected END {directive} in QUESTION")
+                raise SyntaxError(f"Unexpected END {directive if directive else line} in QUESTION")
         elif mode == "DEFINE":
             parse_define(directive, rest, substitutions, substitutions_match)
         elif mode == "CONFIG":
             config[directive] = rest
         else:
-            raise SyntaxError(f"Unexpected directive ({mode}) in QUESTION")
+            raise SyntaxError(f"Unexpected directive ({mode if mode else line}) in QUESTION")
 
 
 def consume_rest_of_group(buff, end):
@@ -314,9 +314,9 @@ def consume_rest_of_group(buff, end):
             elif directive == "SCRAMBLE":
                 scramble = True
             else:
-                raise SyntaxError(f"Unexpected CONFIG directive ({directive}) in GROUP")
+                raise SyntaxError(f"Unexpected CONFIG directive ({directive if directive else line}) in GROUP")
         else:
-            raise SyntaxError(f"Unexpected directive ({mode}) in GROUP")
+            raise SyntaxError(f"Unexpected directive ({line}) in GROUP")
 
 
 def _convert(text, path=None):
@@ -365,7 +365,7 @@ def _convert(text, path=None):
             elif mode == "DEFINE":
                 parse_define(directive, rest, substitutions, substitutions_match)
             else:
-                raise SyntaxError("Unexpected directive")
+                raise SyntaxError(f"Unexpected directive: {line}")
         pbar.close()
     except SyntaxError as e:
         if pbar:
