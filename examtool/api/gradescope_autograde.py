@@ -522,7 +522,8 @@ class GradescopeGrader:
         email_to_data_map: dict, 
         email_to_question_sub_id_map: dict, 
         lower_check: bool=True,
-        custom_rubric_weights_fn: Callable[[GS_Question, List[str], List[bool]], List[float]]=None
+        custom_rubric_weights_fn: Callable[[GS_Question, List[str], List[bool]], List[float]]=None,
+        strip_md_from_sol: bool=True,
         ):
         data = question.data
         # This is a list of correct options from left (top) to right (bottom)
@@ -551,6 +552,27 @@ class GradescopeGrader:
 
         groups = QuestionGrouper(question, rubric=[RubricItem(description=item[0], weight=item[1]) for item in zip(seq_name, rubric_weights)])
 
+        # Process solution
+        if lower_check:
+            sol = solution.strip().lower()
+        else:
+            sol = solution.strip()
+        
+        if strip_md_from_sol:
+            def strip_part(text, boundary):
+                if text.startswith(boundary) and text.endswith(boundary):
+                    blen = len(boundary)
+                    return (text[blen:-blen], True)
+                else:
+                    return (text, False)
+            sol, replaced = strip_part(sol, "$")
+            
+            if not replaced:
+                sol, replaced = strip_part(sol, "```")
+
+                if not replaced:
+                    sol, replaced = strip_part(sol, "`")
+
         eqid = question.data["id"]
         for email, data in email_to_data_map.items():
             responses = data.get("responses", {})
@@ -566,9 +588,9 @@ class GradescopeGrader:
                 if solution is not None:
                     same = None
                     if lower_check:
-                        same = response.lower().strip() == solution.lower().strip()
+                        same = response.lower().strip() == sol
                     else:
-                        same = response.strip() == solution.strip()
+                        same = response.strip() == sol
                     if same:
                         selection[0] = True
                     else:
