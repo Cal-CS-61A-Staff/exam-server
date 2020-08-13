@@ -35,7 +35,6 @@ def gradescope_autograde(exam, name_question, sid_question, course, assignment, 
     target = target or "out/export/" + exam[0]
 
     grouper_map = None
-    import ipdb; ipdb.set_trace()
     if custom_grouper:
         if os.path.exists(custom_grouper):
             import importlib.util
